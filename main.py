@@ -3,6 +3,7 @@ import random
 import math
 import mysql.connector
 import Entities
+
 # --- MySQL Setup (example) ---
 def save_player_data(name, x, y, hp):
     conn = mysql.connector.connect(
@@ -29,42 +30,12 @@ def load_player_data(name):
     conn.close()
     return result if result else (100, 100, 100)
 
-def show_win_screen():
-    win_font = pygame.font.SysFont(None, 72)
-    win_text = win_font.render("You Win!", True, YELLOW)
-    info_font = pygame.font.SysFont(None, 36)
-    quit_text = info_font.render("Press Q to Quit", True, WHITE)
-    restart_text = info_font.render("Press R to Restart", True, WHITE)
-
-    choice_made = False
-    while not choice_made:
-        screen.fill(BLACK)
-        screen.blit(win_text, (GAME_WIDTH//2 - win_text.get_width()//2, GAME_HEIGHT//2 - 80))
-        screen.blit(quit_text, (GAME_WIDTH//2 - quit_text.get_width()//2, GAME_HEIGHT//2))
-        screen.blit(restart_text, (GAME_WIDTH//2 - restart_text.get_width()//2, GAME_HEIGHT//2 + 50))
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                choice_made = True
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
-                    choice_made = True
-                if event.key == pygame.K_r:
-                    return "restart"
-    return "quit"
-
 def reset_round():
+    global current_room
+    current_room = 0
     player.rect.x, player.rect.y = 100, 100
     player.hp = 100
-    enemies.empty()
-    enemies.add(Entities.Enemy(random.randint(0, WIDTH), random.randint(0, HEIGHT), RED, 10, 4))
-    enemies.add(Entities.Enemy(random.randint(0, WIDTH), random.randint(0, HEIGHT), GREEN, 15, 2))
-    enemies.add(Entities.Enemy(random.randint(0, WIDTH), random.randint(0, HEIGHT), WHITE, 20, 3))
-    boss = Entities.Boss(700, 500)
-    enemies.add(boss)
-    all_sprites.empty()
-    all_sprites.add(player)
-    all_sprites.add(enemies)
+    setup_room(current_room)
 
 def show_end_screen(message, color):
     font_big = pygame.font.SysFont(None, 72)
@@ -90,13 +61,17 @@ def show_end_screen(message, color):
 def setup_room(room_index):
     enemies.empty()
     all_sprites.empty()
+    projectiles.empty()
     all_sprites.add(player)
     room = ROOMS[room_index]
     for enemy_info in room["enemies"]:
         if enemy_info[0] == "normal":
             color, hp, speed = enemy_info[1], enemy_info[2], enemy_info[3]
             x, y = random.randint(100, GAME_WIDTH-100), random.randint(100, GAME_HEIGHT-100)
-            e = Entities.Enemy(x, y, color, hp, speed)
+            if color == GREEN:
+                e = Entities.RangedEnemy(x, y, hp, speed)
+            else:
+                e = Entities.Enemy(x, y, color, hp, speed)
             enemies.add(e)
             all_sprites.add(e)
         elif enemy_info[0] == "boss":
@@ -150,23 +125,17 @@ ROOMS = [
 
 enemies = pygame.sprite.Group()
 projectiles = pygame.sprite.Group()
-# Three different monsters
-enemies.add(Entities.Enemy(random.randint(0, WIDTH), random.randint(0, HEIGHT), RED, 10, 4))
-enemies.add(Entities.Enemy(random.randint(0, WIDTH), random.randint(0, HEIGHT), GREEN, 15, 2))
-enemies.add(Entities.Enemy(random.randint(0, WIDTH), random.randint(0, HEIGHT), BLUE, 20, 3))
-# Boss
-boss = Entities.Boss(700, 500)
-enemies.add(boss)
 
 all_sprites = pygame.sprite.Group()
 all_sprites.add(player)
-all_sprites.add(enemies)
 setup_room(current_room)
+frame_count = 0
 
 # --- Main Loop ---
 while True:
     running = True
     while running:
+        frame_count += 1
         clock.tick(60)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -189,7 +158,12 @@ while True:
         player.update(keys)
         player.clamp_to_game_area(GAME_WIDTH, GAME_HEIGHT)
         for enemy in enemies:
-            enemy.ai(player)
+            if isinstance(enemy, Entities.RangedEnemy):
+                enemy.ai(player, projectiles, frame_count)
+            elif isinstance(enemy, Entities.Boss):
+                enemy.ai(player, projectiles, frame_count)
+            else:
+                enemy.ai(player)
             enemy.clamp_to_game_area(GAME_WIDTH, GAME_HEIGHT)
             if player.rect.colliderect(enemy.rect):
                 player.hp -= 0.1
@@ -198,6 +172,12 @@ while True:
             if enemy.hp <= 0:
                 enemies.remove(enemy)
                 all_sprites.remove(enemy)
+
+        projectiles.update()
+        for proj in projectiles:
+            if player.rect.colliderect(proj.rect):
+                player.hp -= 5
+                proj.kill()
 
         # --- Door logic ---
         door_active = len(enemies) == 0 and current_room < len(ROOMS) - 1
@@ -240,6 +220,7 @@ while True:
         room_text = font.render(f'Room: {current_room+1}', True, WHITE)
         screen.blit(hp_text, (10, 10))
         screen.blit(room_text, (10, 40))
+        projectiles.draw(screen)
         # Draw door if active
         if door_active:
             pygame.draw.rect(screen, DOOR_COLOR, door_rect)
