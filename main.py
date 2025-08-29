@@ -45,6 +45,7 @@ def show_end_screen(message, color):
     font_small = pygame.font.SysFont(None, 36)
     quit_text = font_small.render("Press Q to Quit", True, WHITE)
     restart_text = font_small.render("Press R to Restart", True, WHITE)
+    other_mode_text = font_small.render("Press O for Other Mode", True, WHITE)
     while True:
         window_width, window_height = screen.get_size()
         offset_x = (window_width - GAME_AREA_WIDTH) // 2
@@ -55,6 +56,7 @@ def show_end_screen(message, color):
         screen.blit(text, (offset_x + GAME_AREA_WIDTH//2 - text.get_width()//2, offset_y + GAME_AREA_HEIGHT//2 - 80))
         screen.blit(quit_text, (offset_x + GAME_AREA_WIDTH//2 - quit_text.get_width()//2, offset_y + GAME_AREA_HEIGHT//2))
         screen.blit(restart_text, (offset_x + GAME_AREA_WIDTH//2 - restart_text.get_width()//2, offset_y + GAME_AREA_HEIGHT//2 + 50))
+        screen.blit(other_mode_text, (offset_x + GAME_AREA_WIDTH//2 - other_mode_text.get_width()//2, offset_y + GAME_AREA_HEIGHT//2 + 100))
         pygame.display.flip()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -64,6 +66,8 @@ def show_end_screen(message, color):
                     return "quit"
                 if event.key == pygame.K_r:
                     return "restart"
+                if event.key == pygame.K_o:
+                    return "other mode"
 
 def show_pause_screen():
     font_big = pygame.font.SysFont(None, 72)
@@ -131,132 +135,6 @@ def show_mode_select():
                     return "endless"
                 if event.key == pygame.K_2:
                     return "dungeon"
-
-# --- Endless Mode ---
-def endless_mode():
-    player.rect.x, player.rect.y = GAME_AREA_WIDTH//2, GAME_AREA_HEIGHT//2
-    player.hp = 100
-    enemies.empty()
-    projectiles.empty()
-    all_sprites.empty()
-    all_sprites.add(player)
-    score = 0
-    spawn_timer = 0
-    spawn_interval = 120  # frames (2 seconds at 60 FPS)
-    frame_count = 0
-
-    running = True
-    while running:
-        frame_count += 1
-        clock.tick(60)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                save_player_data(player.name, player.rect.x, player.rect.y, player.hp)
-                pygame.quit()
-                exit()
-            elif event.type == pygame.VIDEORESIZE:
-                global screen
-                screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    for enemy in enemies:
-                        dx = enemy.rect.centerx - player.rect.centerx
-                        dy = enemy.rect.centery - player.rect.centery
-                        dist = math.hypot(dx, dy)
-                        if dist < 60:
-                            enemy.hp -= 5
-                            if dist != 0:
-                                enemy.knockback[0] = (dx/dist) * 10
-                                enemy.knockback[1] = (dy/dist) * 10
-                elif event.key == pygame.K_p:
-                    show_pause_screen()
-
-        keys = pygame.key.get_pressed()
-        player.update(keys)
-        player.clamp_to_game_area(GAME_AREA_WIDTH, GAME_AREA_HEIGHT)
-        for enemy in enemies:
-            if isinstance(enemy, Entities.RangedEnemy):
-                enemy.ai(player, projectiles, frame_count)
-            elif isinstance(enemy, Entities.Boss):
-                enemy.ai(player, projectiles, frame_count)
-            else:
-                enemy.ai(player)
-            enemy.clamp_to_game_area(GAME_AREA_WIDTH, GAME_AREA_HEIGHT)
-            if player.rect.colliderect(enemy.rect):
-                player.hp -= 0.1
-
-        # Remove dead enemies and increase score
-        for enemy in list(enemies):
-            if enemy.hp <= 0:
-                enemies.remove(enemy)
-                all_sprites.remove(enemy)
-                score += 1
-
-        # Spawn new enemies at intervals (limit total enemies)
-        spawn_timer += 1
-        if spawn_timer >= spawn_interval and len(enemies) < 8:
-            spawn_timer = 0
-            enemy_type = random.choice(["normal", "ranged", "boss"])
-            x, y = random.randint(50, GAME_AREA_WIDTH-50), random.randint(50, GAME_AREA_HEIGHT-50)
-            if enemy_type == "normal":
-                color = random.choice([RED, BLUE, YELLOW])
-                hp = random.randint(10, 20)
-                speed = random.randint(2, 4)
-                e = Entities.Enemy(x, y, color, hp, speed)
-            elif enemy_type == "ranged":
-                hp = random.randint(10, 15)
-                speed = random.randint(2, 3)
-                e = Entities.RangedEnemy(x, y, hp, speed)
-            else:  # boss (rare)
-                if not any(isinstance(en, Entities.Boss) for en in enemies):
-                    e = Entities.Boss(x, y)
-                else:
-                    # fallback to normal if boss already exists
-                    color = random.choice([RED, BLUE, YELLOW])
-                    hp = random.randint(10, 20)
-                    speed = random.randint(2, 4)
-                    e = Entities.Enemy(x, y, color, hp, speed)
-            enemies.add(e)
-            all_sprites.add(e)
-
-        projectiles.update()
-        for proj in projectiles:
-            if player.rect.colliderect(proj.rect):
-                player.hp -= 5
-                proj.kill()
-
-        # Death condition
-        if player.hp <= 0:
-            result = show_end_screen(f"Game Over! Score: {score}", RED)
-            if result == "restart":
-                return "endless"
-            else:
-                pygame.quit()
-                exit()
-
-        # Drawing
-        window_width, window_height = screen.get_size()
-        offset_x = (window_width - GAME_AREA_WIDTH) // 2
-        offset_y = (window_height - GAME_AREA_HEIGHT) // 2
-
-        screen.fill(BLACK)
-        pygame.draw.rect(screen, LIGHT_GREY, (offset_x, offset_y, GAME_AREA_WIDTH, GAME_AREA_HEIGHT))
-        pygame.draw.rect(screen, WHITE, (offset_x, offset_y, GAME_AREA_WIDTH, GAME_AREA_HEIGHT), 4)
-
-        for sprite in all_sprites:
-            sprite_rect = sprite.rect.move(offset_x, offset_y)
-            screen.blit(sprite.image, sprite_rect)
-        for proj in projectiles:
-            proj_rect = proj.rect.move(offset_x, offset_y)
-            screen.blit(proj.image, proj_rect)
-
-        font = pygame.font.SysFont(None, 24)
-        hp_text = font.render(f'HP: {int(player.hp)}', True, WHITE)
-        score_text = font.render(f'Score: {score}', True, WHITE)
-        screen.blit(hp_text, (offset_x + 10, offset_y + 10))
-        screen.blit(score_text, (offset_x + 10, offset_y + 40))
-
-        pygame.display.flip()
 
 # --- Dungeon Maze Mode ---
 MAZE_WIDTH, MAZE_HEIGHT = 5, 5
@@ -357,146 +235,274 @@ def draw_minimap(dungeon, player_room, boss_room):
             if room.doors['E']:
                 pygame.draw.line(screen, (200,200,0), (cx + cell_size-2, cy + cell_size//2 - door_len//2), (cx + cell_size-2, cy + cell_size//2 + door_len//2), door_thick)
 
-def maze_mode():
-    # Generate dungeon and place player/boss
-    dungeon = [[MazeRoom(x, y) for y in range(MAZE_HEIGHT)] for x in range(MAZE_WIDTH)]
-    connect_rooms(dungeon)
-    player_room = (random.randint(0, MAZE_WIDTH-1), random.randint(0, MAZE_HEIGHT-1))
-    while True:
-        boss_room = (random.randint(0, MAZE_WIDTH-1), random.randint(0, MAZE_HEIGHT-1))
-        if boss_room != player_room:
-            break
-    dungeon[boss_room[0]][boss_room[1]].is_boss = True
-    setup_maze_room(dungeon[player_room[0]][player_room[1]])
-    frame_count = 0
-    running = True
-    player.hp = 100
-
-    while running:
-        frame_count += 1
-        clock.tick(60)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            elif event.type == pygame.VIDEORESIZE:
-                global screen
-                screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-            if event.type == pygame.KEYDOWN:
-                # Only allow room movement if all enemies are cleared
-                if event.key == pygame.K_UP:
-                    if len(enemies) == 0:
-                        new_room = try_move_room('N', dungeon, player_room)
-                        if new_room != player_room:
-                            player_room = new_room
-                            setup_maze_room(dungeon[player_room[0]][player_room[1]])
-                elif event.key == pygame.K_DOWN:
-                    if len(enemies) == 0:
-                        new_room = try_move_room('S', dungeon, player_room)
-                        if new_room != player_room:
-                            player_room = new_room
-                            setup_maze_room(dungeon[player_room[0]][player_room[1]])
-                elif event.key == pygame.K_LEFT:
-                    if len(enemies) == 0:
-                        new_room = try_move_room('W', dungeon, player_room)
-                        if new_room != player_room:
-                            player_room = new_room
-                            setup_maze_room(dungeon[player_room[0]][player_room[1]])
-                elif event.key == pygame.K_RIGHT:
-                    if len(enemies) == 0:
-                        new_room = try_move_room('E', dungeon, player_room)
-                        if new_room != player_room:
-                            player_room = new_room
-                            setup_maze_room(dungeon[player_room[0]][player_room[1]])
-                elif event.key == pygame.K_p:
-                    show_pause_screen()
-                elif event.key == pygame.K_SPACE:
-                    for enemy in enemies:
-                        dx = enemy.rect.centerx - player.rect.centerx
-                        dy = enemy.rect.centery - player.rect.centery
-                        dist = math.hypot(dx, dy)
-                        if dist < 60:
-                            enemy.hp -= 5
-                            if dist != 0:
-                                enemy.knockback[0] = (dx/dist) * 10
-                                enemy.knockback[1] = (dy/dist) * 10
-
-        keys = pygame.key.get_pressed()
-        player.update(keys)
-        player.clamp_to_game_area(GAME_AREA_WIDTH, GAME_AREA_HEIGHT)
-        for enemy in enemies:
-            if isinstance(enemy, Entities.RangedEnemy):
-                enemy.ai(player, projectiles, frame_count)
-            elif isinstance(enemy, Entities.Boss):
-                enemy.ai(player, projectiles, frame_count)
-            else:
-                enemy.ai(player)
-            enemy.clamp_to_game_area(GAME_AREA_WIDTH, GAME_AREA_HEIGHT)
-            if player.rect.colliderect(enemy.rect):
-                player.hp -= 0.1
-
-        for enemy in list(enemies):
-            if enemy.hp <= 0:
-                enemies.remove(enemy)
-                all_sprites.remove(enemy)
-            
-        current_room = dungeon[player_room[0]][player_room[1]]
-        if len(enemies) == 0 and not current_room.cleared and not current_room.is_boss:
-            current_room.cleared = True
-
-        projectiles.update()
-        for proj in projectiles:
-            if player.rect.colliderect(proj.rect):
-                player.hp -= 5
-                proj.kill()
-
-        # Win condition: boss defeated in boss room
-        if dungeon[player_room[0]][player_room[1]].is_boss and not any(isinstance(e, Entities.Boss) for e in enemies):
-            result = show_end_screen("You Win!", YELLOW)
-            if result == "restart":
-                return "dungeon"
-            else:
-                pygame.quit()
-                exit()
-
-        # Death condition
-        if player.hp <= 0:
-            result = show_end_screen("You Died", RED)
-            if result == "restart":
-                return "dungeon"
-            else:
-                pygame.quit()
-                exit()
-
-        # Drawing
-        window_width, window_height = screen.get_size()
-        offset_x = (window_width - GAME_AREA_WIDTH) // 2
-        offset_y = (window_height - GAME_AREA_HEIGHT) // 2
-
-        screen.fill(BLACK)
-        pygame.draw.rect(screen, LIGHT_GREY, (offset_x, offset_y, GAME_AREA_WIDTH, GAME_AREA_HEIGHT))
-        pygame.draw.rect(screen, WHITE, (offset_x, offset_y, GAME_AREA_WIDTH, GAME_AREA_HEIGHT), 4)
-
-        for sprite in all_sprites:
-            sprite_rect = sprite.rect.move(offset_x, offset_y)
-            screen.blit(sprite.image, sprite_rect)
-        for proj in projectiles:
-            proj_rect = proj.rect.move(offset_x, offset_y)
-            screen.blit(proj.image, proj_rect)
-
-        font = pygame.font.SysFont(None, 24)
-        hp_text = font.render(f'HP: {int(player.hp)}', True, WHITE)
-        screen.blit(hp_text, (offset_x + 10, offset_y + 10))
-
-        # Draw minimap
-        draw_minimap(dungeon, player_room, boss_room)
-
-        pygame.display.flip()
-
 # --- Main Loop ---
 mode = show_mode_select()
 while True:
     if mode == "endless":
-        mode = endless_mode()
+        player.rect.x, player.rect.y = GAME_AREA_WIDTH//2, GAME_AREA_HEIGHT//2
+        player.hp = 100
+        enemies.empty()
+        projectiles.empty()
+        all_sprites.empty()
+        all_sprites.add(player)
+        score = 0
+        spawn_timer = 0
+        spawn_interval = 120  # frames (2 seconds at 60 FPS)
+        frame_count = 0
+
+        running = True
+        while running:
+            frame_count += 1
+            clock.tick(60)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    save_player_data(player.name, player.rect.x, player.rect.y, player.hp)
+                    pygame.quit()
+                    exit()
+                elif event.type == pygame.VIDEORESIZE:
+                    screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        for enemy in enemies:
+                            dx = enemy.rect.centerx - player.rect.centerx
+                            dy = enemy.rect.centery - player.rect.centery
+                            dist = math.hypot(dx, dy)
+                            if dist < 60:
+                                enemy.hp -= 5
+                                if dist != 0:
+                                    enemy.knockback[0] = (dx/dist) * 10
+                                    enemy.knockback[1] = (dy/dist) * 10
+                    elif event.key == pygame.K_p:
+                        show_pause_screen()
+
+            keys = pygame.key.get_pressed()
+            player.update(keys)
+            player.clamp_to_game_area(GAME_AREA_WIDTH, GAME_AREA_HEIGHT)
+            for enemy in enemies:
+                if isinstance(enemy, Entities.RangedEnemy):
+                    enemy.ai(player, projectiles, frame_count)
+                elif isinstance(enemy, Entities.Boss):
+                    enemy.ai(player, projectiles, frame_count)
+                else:
+                    enemy.ai(player)
+                enemy.clamp_to_game_area(GAME_AREA_WIDTH, GAME_AREA_HEIGHT)
+                if player.rect.colliderect(enemy.rect):
+                    player.hp -= 0.1
+
+            # Remove dead enemies and increase score
+            for enemy in list(enemies):
+                if enemy.hp <= 0:
+                    enemies.remove(enemy)
+                    all_sprites.remove(enemy)
+                    score += 1
+
+            # Spawn new enemies at intervals (limit total enemies)
+            spawn_timer += 1
+            if spawn_timer >= spawn_interval and len(enemies) < 8:
+                spawn_timer = 0
+                enemy_type = random.choice(["normal", "ranged", "boss"])
+                x, y = random.randint(50, GAME_AREA_WIDTH-50), random.randint(50, GAME_AREA_HEIGHT-50)
+                if enemy_type == "normal":
+                    color = random.choice([RED, BLUE, YELLOW])
+                    hp = random.randint(10, 20)
+                    speed = random.randint(2, 4)
+                    e = Entities.Enemy(x, y, color, hp, speed)
+                elif enemy_type == "ranged":
+                    hp = random.randint(10, 15)
+                    speed = random.randint(2, 3)
+                    e = Entities.RangedEnemy(x, y, hp, speed)
+                else:  # boss (rare)
+                    if not any(isinstance(en, Entities.Boss) for en in enemies):
+                        e = Entities.Boss(x, y)
+                    else:
+                        # fallback to normal if boss already exists
+                        color = random.choice([RED, BLUE, YELLOW])
+                        hp = random.randint(10, 20)
+                        speed = random.randint(2, 4)
+                        e = Entities.Enemy(x, y, color, hp, speed)
+                enemies.add(e)
+                all_sprites.add(e)
+
+            projectiles.update()
+            for proj in projectiles:
+                if player.rect.colliderect(proj.rect):
+                    player.hp -= 5
+                    proj.kill()
+
+            # Death condition
+            if player.hp <= 0:
+                result = show_end_screen(f"Game Over! Score: {score}", RED)
+                if result == "restart":
+                    mode = "endless"
+                    break
+                elif result == "other mode":
+                    mode = "dungeon"
+                    break
+                else:
+                    pygame.quit()
+                    exit()
+
+            # Drawing
+            window_width, window_height = screen.get_size()
+            offset_x = (window_width - GAME_AREA_WIDTH) // 2
+            offset_y = (window_height - GAME_AREA_HEIGHT) // 2
+
+            screen.fill(BLACK)
+            pygame.draw.rect(screen, LIGHT_GREY, (offset_x, offset_y, GAME_AREA_WIDTH, GAME_AREA_HEIGHT))
+            pygame.draw.rect(screen, WHITE, (offset_x, offset_y, GAME_AREA_WIDTH, GAME_AREA_HEIGHT), 4)
+
+            for sprite in all_sprites:
+                sprite_rect = sprite.rect.move(offset_x, offset_y)
+                screen.blit(sprite.image, sprite_rect)
+            for proj in projectiles:
+                proj_rect = proj.rect.move(offset_x, offset_y)
+                screen.blit(proj.image, proj_rect)
+
+            font = pygame.font.SysFont(None, 24)
+            hp_text = font.render(f'HP: {int(player.hp)}', True, WHITE)
+            score_text = font.render(f'Score: {score}', True, WHITE)
+            screen.blit(hp_text, (offset_x + 10, offset_y + 10))
+            screen.blit(score_text, (offset_x + 10, offset_y + 40))
+
+            pygame.display.flip()
     elif mode == "dungeon":
-        mode = maze_mode()
+            dungeon = [[MazeRoom(x, y) for y in range(MAZE_HEIGHT)] for x in range(MAZE_WIDTH)]
+            connect_rooms(dungeon)
+            player_room = (random.randint(0, MAZE_WIDTH-1), random.randint(0, MAZE_HEIGHT-1))
+            while True:
+                boss_room = (random.randint(0, MAZE_WIDTH-1), random.randint(0, MAZE_HEIGHT-1))
+                if boss_room != player_room:
+                    break
+            dungeon[boss_room[0]][boss_room[1]].is_boss = True
+            setup_maze_room(dungeon[player_room[0]][player_room[1]])
+            frame_count = 0
+            running = True
+            player.hp = 100
+
+            while running:
+                frame_count += 1
+                clock.tick(60)
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        exit()
+                    elif event.type == pygame.VIDEORESIZE:
+                        screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                    if event.type == pygame.KEYDOWN:
+                        # Only allow room movement if all enemies are cleared
+                        if event.key == pygame.K_UP:
+                            if len(enemies) == 0:
+                                new_room = try_move_room('N', dungeon, player_room)
+                                if new_room != player_room:
+                                    player_room = new_room
+                                    setup_maze_room(dungeon[player_room[0]][player_room[1]])
+                        elif event.key == pygame.K_DOWN:
+                            if len(enemies) == 0:
+                                new_room = try_move_room('S', dungeon, player_room)
+                                if new_room != player_room:
+                                    player_room = new_room
+                                    setup_maze_room(dungeon[player_room[0]][player_room[1]])
+                        elif event.key == pygame.K_LEFT:
+                            if len(enemies) == 0:
+                                new_room = try_move_room('W', dungeon, player_room)
+                                if new_room != player_room:
+                                    player_room = new_room
+                                    setup_maze_room(dungeon[player_room[0]][player_room[1]])
+                        elif event.key == pygame.K_RIGHT:
+                            if len(enemies) == 0:
+                                new_room = try_move_room('E', dungeon, player_room)
+                                if new_room != player_room:
+                                    player_room = new_room
+                                    setup_maze_room(dungeon[player_room[0]][player_room[1]])
+                        elif event.key == pygame.K_p:
+                            show_pause_screen()
+                        elif event.key == pygame.K_SPACE:
+                            for enemy in enemies:
+                                dx = enemy.rect.centerx - player.rect.centerx
+                                dy = enemy.rect.centery - player.rect.centery
+                                dist = math.hypot(dx, dy)
+                                if dist < 60:
+                                    enemy.hp -= 5
+                                    if dist != 0:
+                                        enemy.knockback[0] = (dx/dist) * 10
+                                        enemy.knockback[1] = (dy/dist) * 10
+
+                keys = pygame.key.get_pressed()
+                player.update(keys)
+                player.clamp_to_game_area(GAME_AREA_WIDTH, GAME_AREA_HEIGHT)
+                for enemy in enemies:
+                    if isinstance(enemy, Entities.RangedEnemy):
+                        enemy.ai(player, projectiles, frame_count)
+                    elif isinstance(enemy, Entities.Boss):
+                        enemy.ai(player, projectiles, frame_count)
+                    else:
+                        enemy.ai(player)
+                    enemy.clamp_to_game_area(GAME_AREA_WIDTH, GAME_AREA_HEIGHT)
+                    if player.rect.colliderect(enemy.rect):
+                        player.hp -= 0.1
+
+                for enemy in list(enemies):
+                    if enemy.hp <= 0:
+                        enemies.remove(enemy)
+                        all_sprites.remove(enemy)
+                    
+                current_room = dungeon[player_room[0]][player_room[1]]
+                if len(enemies) == 0 and not current_room.cleared and not current_room.is_boss:
+                    current_room.cleared = True
+
+                projectiles.update()
+                for proj in projectiles:
+                    if player.rect.colliderect(proj.rect):
+                        player.hp -= 5
+                        proj.kill()
+
+                # Win condition: boss defeated in boss room
+                if dungeon[player_room[0]][player_room[1]].is_boss and not any(isinstance(e, Entities.Boss) for e in enemies):
+                    result = show_end_screen("You Win!", YELLOW)
+                    if result == "restart":
+                        mode = "dungeon"
+                        break
+                    elif result == "other mode":
+                        mode = "endless"
+                        break
+                    else:
+                        pygame.quit()
+                        exit()
+
+                # Death condition
+                if player.hp <= 0:
+                    result = show_end_screen("You Died", RED)
+                    if result == "restart":
+                        mode = "dungeon"
+                        break
+                    elif result == "other mode":
+                        mode = "endless"
+                        break
+                    else:
+                        pygame.quit()
+                        exit()
+
+                # Drawing
+                window_width, window_height = screen.get_size()
+                offset_x = (window_width - GAME_AREA_WIDTH) // 2
+                offset_y = (window_height - GAME_AREA_HEIGHT) // 2
+
+                screen.fill(BLACK)
+                pygame.draw.rect(screen, LIGHT_GREY, (offset_x, offset_y, GAME_AREA_WIDTH, GAME_AREA_HEIGHT))
+                pygame.draw.rect(screen, WHITE, (offset_x, offset_y, GAME_AREA_WIDTH, GAME_AREA_HEIGHT), 4)
+
+                for sprite in all_sprites:
+                    sprite_rect = sprite.rect.move(offset_x, offset_y)
+                    screen.blit(sprite.image, sprite_rect)
+                for proj in projectiles:
+                    proj_rect = proj.rect.move(offset_x, offset_y)
+                    screen.blit(proj.image, proj_rect)
+
+                font = pygame.font.SysFont(None, 24)
+                hp_text = font.render(f'HP: {int(player.hp)}', True, WHITE)
+                screen.blit(hp_text, (offset_x + 10, offset_y + 10))
+
+                # Draw minimap
+                draw_minimap(dungeon, player_room, boss_room)
+
+                pygame.display.flip()
