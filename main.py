@@ -98,7 +98,7 @@ pygame.init()
 GAME_AREA_WIDTH, GAME_AREA_HEIGHT = 800, 600
 
 screen = pygame.display.set_mode((GAME_AREA_WIDTH, GAME_AREA_HEIGHT), pygame.RESIZABLE)
-pygame.display.set_caption("Dungeon Game")
+pygame.display.set_caption("Dungeon Odyssey")
 clock = pygame.time.Clock()
 
 enemies = pygame.sprite.Group()
