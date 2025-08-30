@@ -359,7 +359,7 @@ while True:
             pygame.display.flip()
 
     elif mode == "dungeon":
-            dungeon = [[MazeRoom(x, y) for y in range(MAZE_HEIGHT)] for x in range(MAZE_WIDTH)]
+            dungeon = [[Entities.MazeRoom(x, y) for y in range(MAZE_HEIGHT)] for x in range(MAZE_WIDTH)]
             connect_rooms(dungeon)
             player_room = (random.randint(0, MAZE_WIDTH-1), random.randint(0, MAZE_HEIGHT-1))
             while True:
