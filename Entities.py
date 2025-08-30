@@ -181,12 +181,12 @@ class Projectile(pygame.sprite.Sprite):
         if (self.rect.right < 0 or self.rect.left > 800 or
             self.rect.bottom < 0 or self.rect.top > 600):
             self.kill()
-
-class Room:
+            
+class MazeRoom:
     def __init__(self, x, y, is_boss=False):
         self.x = x
         self.y = y
         self.visited = False
         self.is_boss = is_boss
-        self.enemies = []
         self.doors = {'N': False, 'S': False, 'E': False, 'W': False}
+        self.cleared = False

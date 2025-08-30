@@ -139,15 +139,6 @@ def show_mode_select():
 # --- Dungeon Maze Mode ---
 MAZE_WIDTH, MAZE_HEIGHT = 5, 5
 
-class MazeRoom:
-    def __init__(self, x, y, is_boss=False):
-        self.x = x
-        self.y = y
-        self.visited = False
-        self.is_boss = is_boss
-        self.doors = {'N': False, 'S': False, 'E': False, 'W': False}
-        self.cleared = False
-
 def connect_rooms(dungeon):
     for x in range(MAZE_WIDTH):
         for y in range(MAZE_HEIGHT):
@@ -225,15 +216,15 @@ def draw_minimap(dungeon, player_room, boss_room):
             cx = offset_x + x*cell_size
             cy = offset_y + y*cell_size
             door_thick = 3
-            door_len = cell_size // 4
+            door_len = cell_size // 8
             if room.doors['N']:
-                pygame.draw.line(screen, (200,200,0), (cx + cell_size//2 - door_len//2, cy), (cx + cell_size//2 + door_len//2, cy), door_thick)
+                pygame.draw.line(screen, (200,200,0), (cx + cell_size//2 - door_len, cy), (cx + cell_size//2 + door_len, cy), door_thick)
             if room.doors['S']:
-                pygame.draw.line(screen, (200,200,0), (cx + cell_size//2 - door_len//2, cy + cell_size-2), (cx + cell_size//2 + door_len//2, cy + cell_size-2), door_thick)
+                pygame.draw.line(screen, (200,200,0), (cx + cell_size//2 - door_len, cy + cell_size-2), (cx + cell_size//2 + door_len, cy + cell_size-2), door_thick)
             if room.doors['W']:
-                pygame.draw.line(screen, (200,200,0), (cx, cy + cell_size//2 - door_len//2), (cx, cy + cell_size//2 + door_len//2), door_thick)
+                pygame.draw.line(screen, (200,200,0), (cx, cy + cell_size//2 - door_len), (cx, cy + cell_size//2 + door_len), door_thick)
             if room.doors['E']:
-                pygame.draw.line(screen, (200,200,0), (cx + cell_size-2, cy + cell_size//2 - door_len//2), (cx + cell_size-2, cy + cell_size//2 + door_len//2), door_thick)
+                pygame.draw.line(screen, (200,200,0), (cx + cell_size-2, cy + cell_size//2 - door_len), (cx + cell_size-2, cy + cell_size//2 + door_len), door_thick)
 
 # --- Main Loop ---
 mode = show_mode_select()
@@ -323,6 +314,7 @@ while True:
                 enemies.add(e)
                 all_sprites.add(e)
 
+            # Updating Projectiles
             projectiles.update()
             for proj in projectiles:
                 if player.rect.colliderect(proj.rect):
@@ -365,6 +357,7 @@ while True:
             screen.blit(score_text, (offset_x + 10, offset_y + 40))
 
             pygame.display.flip()
+
     elif mode == "dungeon":
             dungeon = [[MazeRoom(x, y) for y in range(MAZE_HEIGHT)] for x in range(MAZE_WIDTH)]
             connect_rooms(dungeon)
@@ -450,6 +443,7 @@ while True:
                 if len(enemies) == 0 and not current_room.cleared and not current_room.is_boss:
                     current_room.cleared = True
 
+                # Updating Projectiles
                 projectiles.update()
                 for proj in projectiles:
                     if player.rect.colliderect(proj.rect):
