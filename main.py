@@ -500,3 +500,4 @@ while True:
                 draw_minimap(dungeon, player_room, boss_room)
 
                 pygame.display.flip()
+
